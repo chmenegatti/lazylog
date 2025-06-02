@@ -1,42 +1,50 @@
 package lazylog
 
-import "strings"
-
-type Level int
-
-const (
-	DEBUG Level = iota
-	INFO
-	WARN
-	ERROR
+import (
+	"io"
+	"time"
 )
 
-func (l Level) String() string {
-	switch l {
-	case DEBUG:
-		return "DEBUG"
-	case INFO:
-		return "INFO"
-	case WARN:
-		return "WARN"
-	case ERROR:
-		return "ERROR"
-	default:
-		return "UNKNOWN"
+type Logger struct {
+	Out      io.Writer
+	MinLevel Level
+}
+
+func New() *Logger {
+	return &Logger{
+		Out:      io.Discard, // Default to discard output
+		MinLevel: INFO,       // Default minimum level to INFO
 	}
 }
 
-func ParseLevel(lvl string) Level {
-	switch strings.ToUpper(lvl) {
-	case "DEBUG":
-		return DEBUG
-	case "INFO":
-		return INFO
-	case "WARN":
-		return WARN
-	case "ERROR":
-		return ERROR
-	default:
-		return INFO // Default to INFO if the level is unknown
+func (l *Logger) log(level Level, message string) {
+	if level < l.MinLevel {
+		return // Skip logging if the level is below the minimum
 	}
+	entry := Entry{
+		Level:     level,
+		Timestamp: time.Now(),
+		Message:   message,
+	}
+	io.WriteString(l.Out, entry.Timestamp.Format(time.RFC3339)+" ["+entry.Level.String()+"] "+entry.Message+"\n")
+}
+
+// Debug registra uma mensagem no nível DEBUG.
+func (l *Logger) Debug(message string) {
+	l.log(DEBUG, message)
+}
+
+// Info registra uma mensagem no nível INFO.
+func (l *Logger) Info(message string) {
+	l.log(INFO, message)
+}
+
+// Warn registra uma mensagem no nível WARN.
+func (l *Logger) Warn(message string) {
+	l.log(WARN, message)
+}
+
+// Error registra uma mensagem no nível ERROR.
+func (l *Logger) Error(message string) {
+	l.log(ERROR, message)
 }

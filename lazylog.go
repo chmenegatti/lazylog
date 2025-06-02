@@ -6,14 +6,18 @@ import (
 )
 
 type Logger struct {
-	Out      io.Writer
-	MinLevel Level
+	Out       io.Writer
+	MinLevel  Level
+	Formatter Formatter // Optional formatter for log entries
 }
 
 func New() *Logger {
 	return &Logger{
 		Out:      io.Discard, // Default to discard output
 		MinLevel: INFO,       // Default minimum level to INFO
+		Formatter: &TextFormatter{
+			TimestampFormat: time.RFC3339, // Use default timestamp format (time.RFC3339)
+		}, // No formatter by default
 	}
 }
 
@@ -26,7 +30,14 @@ func (l *Logger) log(level Level, message string) {
 		Timestamp: time.Now(),
 		Message:   message,
 	}
-	io.WriteString(l.Out, entry.Timestamp.Format(time.RFC3339)+" ["+entry.Level.String()+"] "+entry.Message+"\n")
+	bytes, err := l.Formatter.Format(&entry)
+	if err != nil {
+		// If formatting fails, we log to the default output without formatting
+		io.WriteString(l.Out, entry.Timestamp.Format(time.RFC3339)+" ["+level.String()+"] "+message+"\n")
+		return
+	}
+
+	l.Out.Write(bytes) // Write the formatted log entry to the output
 }
 
 // Debug registra uma mensagem no nível DEBUG.

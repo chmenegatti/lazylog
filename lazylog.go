@@ -93,3 +93,50 @@ func (b *EntryBuilder) Debug(msg string) { b.logger.logWithFields(DEBUG, msg, b.
 func (b *EntryBuilder) Info(msg string)  { b.logger.logWithFields(INFO, msg, b.fields) }
 func (b *EntryBuilder) Warn(msg string)  { b.logger.logWithFields(WARN, msg, b.fields) }
 func (b *EntryBuilder) Error(msg string) { b.logger.logWithFields(ERROR, msg, b.fields) }
+
+// LoggerConfig permite inicializar o logger de forma dinâmica.
+type LoggerConfig struct {
+	Transports []TransportConfig
+}
+
+type TransportConfig struct {
+	Type      string         // "console", "file", etc
+	Level     string         // "INFO", "DEBUG", ...
+	Formatter string         // "text", "json"
+	Options   map[string]any // opções específicas (ex: path para arquivo)
+}
+
+// NewLoggerFromConfig cria um Logger a partir de uma configuração dinâmica.
+func NewLoggerFromConfig(cfg LoggerConfig) (*Logger, error) {
+	logger := &Logger{}
+	for _, tcfg := range cfg.Transports {
+		var formatter Formatter
+		switch tcfg.Formatter {
+		case "json":
+			formatter = &JSONFormatter{}
+		default:
+			formatter = &TextFormatter{}
+		}
+		level := ParseLevel(tcfg.Level)
+		switch tcfg.Type {
+		case "console":
+			toStdErr := false
+			if v, ok := tcfg.Options["stderr"].(bool); ok {
+				toStdErr = v
+			}
+			logger.AddTransport(&ConsoleTransport{
+				Level:     level,
+				Formatter: formatter,
+				ToStdErr:  toStdErr,
+			})
+		case "file":
+			path, _ := tcfg.Options["path"].(string)
+			ft, err := NewFileTransport(path, level, formatter)
+			if err != nil {
+				return nil, err
+			}
+			logger.AddTransport(ft)
+		}
+	}
+	return logger, nil
+}

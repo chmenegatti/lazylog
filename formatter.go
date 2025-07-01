@@ -44,7 +44,7 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 
 	// Escreve a mensagem
 	b.WriteString(entry.Message)
-	if entry.Fields != nil && len(entry.Fields) > 0 {
+	if len(entry.Fields) > 0 {
 		b.WriteString(" ")
 		for k, v := range entry.Fields {
 			b.WriteString(fmt.Sprintf("%s=%v ", k, v))

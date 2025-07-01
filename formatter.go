@@ -64,7 +64,7 @@ type JSONFormatter struct{}
 // Format implementa a interface Formatter para JSONFormatter.
 func (f *JSONFormatter) Format(entry *Entry) ([]byte, error) {
 	// Para serializar o nível como string, criamos um tipo anônimo.
-	data := map[string]interface{}{
+	data := map[string]any{
 		"timestamp": entry.Timestamp.Format(time.RFC3339Nano), // JSON geralmente usa alta precisão
 		"level":     entry.Level.String(),
 		"message":   entry.Message,

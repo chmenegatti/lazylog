@@ -4,8 +4,13 @@ import (
 	"time"
 )
 
+type Hook func(entry *Entry)
+
+// Logger agora suporta hooks.
 type Logger struct {
-	transports []Transport
+	transports  []Transport
+	BeforeHooks []Hook
+	AfterHooks  []Hook
 }
 
 // NewLogger cria um logger com zero ou mais transportes.
@@ -30,6 +35,15 @@ func (l *Logger) RemoveTransport(t Transport) {
 	}
 }
 
+// AddHook adiciona um hook para ser executado antes ou depois do log.
+func (l *Logger) AddHook(hook Hook, before bool) {
+	if before {
+		l.BeforeHooks = append(l.BeforeHooks, hook)
+	} else {
+		l.AfterHooks = append(l.AfterHooks, hook)
+	}
+}
+
 // log envia a entry para todos os transportes cujo nível mínimo seja compatível.
 func (l *Logger) log(level Level, message string) {
 	entry := Entry{
@@ -37,10 +51,16 @@ func (l *Logger) log(level Level, message string) {
 		Timestamp: time.Now(),
 		Message:   message,
 	}
+	for _, hook := range l.BeforeHooks {
+		hook(&entry)
+	}
 	for _, t := range l.transports {
 		if level >= t.MinLevel() {
 			t.WriteLog(&entry)
 		}
+	}
+	for _, hook := range l.AfterHooks {
+		hook(&entry)
 	}
 }
 
@@ -71,10 +91,16 @@ func (l *Logger) logWithFields(level Level, message string, fields map[string]in
 		Message:   message,
 		Fields:    fields,
 	}
+	for _, hook := range l.BeforeHooks {
+		hook(&entry)
+	}
 	for _, t := range l.transports {
 		if level >= t.MinLevel() {
 			t.WriteLog(&entry)
 		}
+	}
+	for _, hook := range l.AfterHooks {
+		hook(&entry)
 	}
 }
 

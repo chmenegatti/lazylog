@@ -1,43 +1,47 @@
 package lazylog
 
 import (
-	"io"
 	"time"
 )
 
 type Logger struct {
-	Out       io.Writer
-	MinLevel  Level
-	Formatter Formatter // Optional formatter for log entries
+	transports []Transport
 }
 
-func New() *Logger {
+// NewLogger cria um logger com zero ou mais transportes.
+func NewLogger(transports ...Transport) *Logger {
 	return &Logger{
-		Out:      io.Discard, // Default to discard output
-		MinLevel: INFO,       // Default minimum level to INFO
-		Formatter: &TextFormatter{
-			TimestampFormat: time.RFC3339, // Use default timestamp format (time.RFC3339)
-		}, // No formatter by default
+		transports: transports,
 	}
 }
 
-func (l *Logger) log(level Level, message string) {
-	if level < l.MinLevel {
-		return // Skip logging if the level is below the minimum
+// AddTransport adiciona um novo transporte ao logger.
+func (l *Logger) AddTransport(t Transport) {
+	l.transports = append(l.transports, t)
+}
+
+// RemoveTransport remove um transporte do logger (por comparação de ponteiro).
+func (l *Logger) RemoveTransport(t Transport) {
+	for i, tr := range l.transports {
+		if tr == t {
+			l.transports = append(l.transports[:i], l.transports[i+1:]...)
+			return
+		}
 	}
+}
+
+// log envia a entry para todos os transportes cujo nível mínimo seja compatível.
+func (l *Logger) log(level Level, message string) {
 	entry := Entry{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
 	}
-	bytes, err := l.Formatter.Format(&entry)
-	if err != nil {
-		// If formatting fails, we log to the default output without formatting
-		io.WriteString(l.Out, entry.Timestamp.Format(time.RFC3339)+" ["+level.String()+"] "+message+"\n")
-		return
+	for _, t := range l.transports {
+		if level >= t.MinLevel() {
+			t.WriteLog(&entry)
+		}
 	}
-
-	l.Out.Write(bytes) // Write the formatted log entry to the output
 }
 
 // Debug registra uma mensagem no nível DEBUG.
@@ -59,3 +63,33 @@ func (l *Logger) Warn(message string) {
 func (l *Logger) Error(message string) {
 	l.log(ERROR, message)
 }
+
+func (l *Logger) logWithFields(level Level, message string, fields map[string]interface{}) {
+	entry := Entry{
+		Level:     level,
+		Timestamp: time.Now(),
+		Message:   message,
+		Fields:    fields,
+	}
+	for _, t := range l.transports {
+		if level >= t.MinLevel() {
+			t.WriteLog(&entry)
+		}
+	}
+}
+
+// ComFields permite adicionar metadata/contexto extra ao log.
+func (l *Logger) ComFields(fields map[string]interface{}) *EntryBuilder {
+	return &EntryBuilder{logger: l, fields: fields}
+}
+
+// EntryBuilder permite construir logs com metadata extra.
+type EntryBuilder struct {
+	logger *Logger
+	fields map[string]interface{}
+}
+
+func (b *EntryBuilder) Debug(msg string) { b.logger.logWithFields(DEBUG, msg, b.fields) }
+func (b *EntryBuilder) Info(msg string)  { b.logger.logWithFields(INFO, msg, b.fields) }
+func (b *EntryBuilder) Warn(msg string)  { b.logger.logWithFields(WARN, msg, b.fields) }
+func (b *EntryBuilder) Error(msg string) { b.logger.logWithFields(ERROR, msg, b.fields) }

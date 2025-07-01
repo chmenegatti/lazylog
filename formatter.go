@@ -44,7 +44,12 @@ func (f *TextFormatter) Format(entry *Entry) ([]byte, error) {
 
 	// Escreve a mensagem
 	b.WriteString(entry.Message)
-
+	if entry.Fields != nil && len(entry.Fields) > 0 {
+		b.WriteString(" ")
+		for k, v := range entry.Fields {
+			b.WriteString(fmt.Sprintf("%s=%v ", k, v))
+		}
+	}
 	// Adiciona uma nova linha no final
 	b.WriteString("\n")
 
@@ -59,14 +64,13 @@ type JSONFormatter struct{}
 // Format implementa a interface Formatter para JSONFormatter.
 func (f *JSONFormatter) Format(entry *Entry) ([]byte, error) {
 	// Para serializar o nível como string, criamos um tipo anônimo.
-	data := struct {
-		Timestamp string `json:"timestamp"`
-		Level     string `json:"level"`
-		Message   string `json:"message"`
-	}{
-		Timestamp: entry.Timestamp.Format(time.RFC3339Nano), // JSON geralmente usa alta precisão
-		Level:     entry.Level.String(),
-		Message:   entry.Message,
+	data := map[string]interface{}{
+		"timestamp": entry.Timestamp.Format(time.RFC3339Nano), // JSON geralmente usa alta precisão
+		"level":     entry.Level.String(),
+		"message":   entry.Message,
+	}
+	for k, v := range entry.Fields {
+		data[k] = v
 	}
 
 	b, err := json.Marshal(data)

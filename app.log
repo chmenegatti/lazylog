@@ -2,3 +2,6 @@
 {"level":"WARN","message":"Mensagem de aviso","timestamp":"2025-07-01T20:40:26.150201379-03:00"}
 {"level":"ERROR","message":"Mensagem de erro","timestamp":"2025-07-01T20:40:26.150221582-03:00"}
 {"level":"INFO","message":"Log com contexto extra","request_id":12345,"timestamp":"2025-07-01T20:40:26.150237475-03:00","user":"cesar"}
+{"level":"INFO","message":"Log normal com hooks","runtime":1751413514760110223,"timestamp":"2025-07-01T20:45:14.760110051-03:00"}
+{"level":"ERROR","message":"Erro de exemplo com hooks","runtime":1751413514760240976,"timestamp":"2025-07-01T20:45:14.76024082-03:00"}
+{"level":"WARN","message":"Log com contexto e hooks","runtime":1751413514760261219,"timestamp":"2025-07-01T20:45:14.760261117-03:00","user":"cesar"}

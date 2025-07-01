@@ -7,11 +7,16 @@ import (
 
 type Hook func(entry *Entry)
 
-// Logger agora suporta hooks.
+// Hook de erro de transporte
+// TransportErrorHook é chamado quando um transporte falha ao gravar.
+type TransportErrorHook func(entry *Entry, transport Transport, err error)
+
+// Logger agora suporta hooks de erro de transporte.
 type Logger struct {
 	transports  []Transport
 	BeforeHooks []Hook
 	AfterHooks  []Hook
+	ErrorHooks  []TransportErrorHook
 }
 
 // NewLogger cria um logger com zero ou mais transportes.
@@ -45,6 +50,11 @@ func (l *Logger) AddHook(hook Hook, before bool) {
 	}
 }
 
+// AddErrorHook adiciona um hook para erros de transporte.
+func (l *Logger) AddErrorHook(hook TransportErrorHook) {
+	l.ErrorHooks = append(l.ErrorHooks, hook)
+}
+
 // log envia a entry para todos os transportes cujo nível mínimo seja compatível.
 func (l *Logger) log(level Level, message string) {
 	entry := Entry{
@@ -57,7 +67,12 @@ func (l *Logger) log(level Level, message string) {
 	}
 	for _, t := range l.transports {
 		if level >= t.MinLevel() {
-			t.WriteLog(&entry)
+			err := t.WriteLog(&entry)
+			if err != nil {
+				for _, eh := range l.ErrorHooks {
+					eh(&entry, t, err)
+				}
+			}
 		}
 	}
 	for _, hook := range l.AfterHooks {
@@ -97,7 +112,12 @@ func (l *Logger) logWithFields(level Level, message string, fields map[string]in
 	}
 	for _, t := range l.transports {
 		if level >= t.MinLevel() {
-			t.WriteLog(&entry)
+			err := t.WriteLog(&entry)
+			if err != nil {
+				for _, eh := range l.ErrorHooks {
+					eh(&entry, t, err)
+				}
+			}
 		}
 	}
 	for _, hook := range l.AfterHooks {

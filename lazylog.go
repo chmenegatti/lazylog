@@ -130,16 +130,79 @@ func (l *Logger) ComFields(fields map[string]interface{}) *EntryBuilder {
 	return &EntryBuilder{logger: l, fields: fields}
 }
 
-// EntryBuilder permite construir logs com metadata extra.
+// EntryBuilder permite construir logs com metadata extra e formatter customizado.
 type EntryBuilder struct {
-	logger *Logger
-	fields map[string]interface{}
+	logger    *Logger
+	fields    map[string]interface{}
+	formatter Formatter
 }
 
-func (b *EntryBuilder) Debug(msg string) { b.logger.logWithFields(DEBUG, msg, b.fields) }
-func (b *EntryBuilder) Info(msg string)  { b.logger.logWithFields(INFO, msg, b.fields) }
-func (b *EntryBuilder) Warn(msg string)  { b.logger.logWithFields(WARN, msg, b.fields) }
-func (b *EntryBuilder) Error(msg string) { b.logger.logWithFields(ERROR, msg, b.fields) }
+// WithFormatter permite sobrescrever o formatter para este log.
+func (l *Logger) WithFormatter(formatter Formatter) *EntryBuilder {
+	return &EntryBuilder{logger: l, formatter: formatter}
+}
+
+func (b *EntryBuilder) Debug(msg string) {
+	b.logger.logWithFieldsCustomFormatter(DEBUG, msg, b.fields, b.formatter)
+}
+func (b *EntryBuilder) Info(msg string) {
+	b.logger.logWithFieldsCustomFormatter(INFO, msg, b.fields, b.formatter)
+}
+func (b *EntryBuilder) Warn(msg string) {
+	b.logger.logWithFieldsCustomFormatter(WARN, msg, b.fields, b.formatter)
+}
+func (b *EntryBuilder) Error(msg string) {
+	b.logger.logWithFieldsCustomFormatter(ERROR, msg, b.fields, b.formatter)
+}
+
+// logWithFieldsCustomFormatter permite sobrescrever o formatter por mensagem.
+func (l *Logger) logWithFieldsCustomFormatter(level Level, message string, fields map[string]interface{}, formatter Formatter) {
+	entry := Entry{
+		Level:     level,
+		Timestamp: time.Now(),
+		Message:   message,
+		Fields:    fields,
+	}
+	for _, hook := range l.BeforeHooks {
+		hook(&entry)
+	}
+	for _, t := range l.transports {
+		if level >= t.MinLevel() {
+			if formatter != nil {
+				// Se o transporte for WriterTransport, ConsoleTransport, FileTransport ou LumberjackTransport, sobrescreve o formatter temporariamente
+				switch tr := t.(type) {
+				case *WriterTransport:
+					orig := tr.Formatter
+					tr.Formatter = formatter
+					_ = tr.WriteLog(&entry)
+					tr.Formatter = orig
+				case *ConsoleTransport:
+					orig := tr.Formatter
+					tr.Formatter = formatter
+					_ = tr.WriteLog(&entry)
+					tr.Formatter = orig
+				case *FileTransport:
+					orig := tr.Formatter
+					tr.Formatter = formatter
+					_ = tr.WriteLog(&entry)
+					tr.Formatter = orig
+				case *LumberjackTransport:
+					orig := tr.Formatter
+					tr.Formatter = formatter
+					_ = tr.WriteLog(&entry)
+					tr.Formatter = orig
+				default:
+					_ = t.WriteLog(&entry)
+				}
+			} else {
+				_ = t.WriteLog(&entry)
+			}
+		}
+	}
+	for _, hook := range l.AfterHooks {
+		hook(&entry)
+	}
+}
 
 // LoggerConfig permite inicializar o logger de forma dinâmica.
 type LoggerConfig struct {

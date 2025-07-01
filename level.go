@@ -11,32 +11,37 @@ const (
 	ERROR
 )
 
-func (l Level) String() string {
-	switch l {
-	case DEBUG:
-		return "DEBUG"
-	case INFO:
-		return "INFO"
-	case WARN:
-		return "WARN"
-	case ERROR:
-		return "ERROR"
-	default:
-		return "UNKNOWN"
+var (
+	levelNames = map[Level]string{
+		DEBUG: "DEBUG",
+		INFO:  "INFO",
+		WARN:  "WARN",
+		ERROR: "ERROR",
 	}
+	levelValues = map[string]Level{
+		"DEBUG": DEBUG,
+		"INFO":  INFO,
+		"WARN":  WARN,
+		"ERROR": ERROR,
+	}
+)
+
+// RegisterLevel permite registrar um novo nível de log customizado.
+func RegisterLevel(name string, value Level) {
+	levelNames[value] = name
+	levelValues[name] = value
+}
+
+func (l Level) String() string {
+	if name, ok := levelNames[l]; ok {
+		return name
+	}
+	return "UNKNOWN"
 }
 
 func ParseLevel(lvl string) Level {
-	switch strings.ToUpper(lvl) {
-	case "DEBUG":
-		return DEBUG
-	case "INFO":
-		return INFO
-	case "WARN":
-		return WARN
-	case "ERROR":
-		return ERROR
-	default:
-		return INFO // Default to INFO if the level is unknown
+	if v, ok := levelValues[strings.ToUpper(lvl)]; ok {
+		return v
 	}
+	return INFO // Default to INFO if the level is unknown
 }

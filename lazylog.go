@@ -1,6 +1,7 @@
 package lazylog
 
 import (
+	"context"
 	"time"
 )
 
@@ -165,4 +166,48 @@ func NewLoggerFromConfig(cfg LoggerConfig) (*Logger, error) {
 		}
 	}
 	return logger, nil
+}
+
+// logWithContext permite logar com context.Context, extraindo informações relevantes.
+func (l *Logger) logWithContext(ctx context.Context, level Level, message string, fields map[string]interface{}) {
+	entry := Entry{
+		Level:     level,
+		Timestamp: time.Now(),
+		Message:   message,
+		Fields:    fields,
+	}
+	// Exemplo: extrair trace_id do contexto, se existir
+	if ctx != nil {
+		if v := ctx.Value("trace_id"); v != nil {
+			if entry.Fields == nil {
+				entry.Fields = make(map[string]interface{})
+			}
+			entry.Fields["trace_id"] = v
+		}
+	}
+	for _, hook := range l.BeforeHooks {
+		hook(&entry)
+	}
+	for _, t := range l.transports {
+		if level >= t.MinLevel() {
+			t.WriteLog(&entry)
+		}
+	}
+	for _, hook := range l.AfterHooks {
+		hook(&entry)
+	}
+}
+
+// API pública para logar com contexto
+func (l *Logger) InfoCtx(ctx context.Context, msg string, fields map[string]interface{}) {
+	l.logWithContext(ctx, INFO, msg, fields)
+}
+func (l *Logger) DebugCtx(ctx context.Context, msg string, fields map[string]interface{}) {
+	l.logWithContext(ctx, DEBUG, msg, fields)
+}
+func (l *Logger) WarnCtx(ctx context.Context, msg string, fields map[string]interface{}) {
+	l.logWithContext(ctx, WARN, msg, fields)
+}
+func (l *Logger) ErrorCtx(ctx context.Context, msg string, fields map[string]interface{}) {
+	l.logWithContext(ctx, ERROR, msg, fields)
 }

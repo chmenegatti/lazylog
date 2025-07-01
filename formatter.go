@@ -64,15 +64,12 @@ type JSONFormatter struct{}
 // Format implementa a interface Formatter para JSONFormatter.
 func (f *JSONFormatter) Format(entry *Entry) ([]byte, error) {
 	// Para serializar o nível como string, criamos um tipo anônimo.
-	data := map[string]any{
+	data := map[string]interface{}{
 		"timestamp": entry.Timestamp.Format(time.RFC3339Nano), // JSON geralmente usa alta precisão
 		"level":     entry.Level.String(),
 		"message":   entry.Message,
 	}
-	for k, v := range entry.Fields {
-		data[k] = v
-	}
-
+	mergeFields(data, entry.Fields)
 	b, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -80,4 +77,20 @@ func (f *JSONFormatter) Format(entry *Entry) ([]byte, error) {
 
 	// Adiciona uma nova linha para que cada log JSON fique em sua própria linha
 	return append(b, '\n'), nil
+}
+
+// mergeFields faz merge recursivo de campos, suportando campos aninhados.
+func mergeFields(dst, src map[string]interface{}) {
+	for k, v := range src {
+		if vmap, ok := v.(map[string]interface{}); ok {
+			if dstmap, ok := dst[k].(map[string]interface{}); ok {
+				mergeFields(dstmap, vmap)
+				dst[k] = dstmap
+			} else {
+				dst[k] = vmap
+			}
+		} else {
+			dst[k] = v
+		}
+	}
 }

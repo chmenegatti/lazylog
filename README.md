@@ -195,4 +195,55 @@ go test -bench=. -benchmem
 
 MIT License. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
+## 🤝 Como Contribuir
 
+Contribuições são muito bem-vindas! Siga as etapas abaixo para colaborar com o desenvolvimento do lazylog:
+
+1. **Fork o repositório**
+   - Clique em "Fork" no topo da página do GitHub para criar uma cópia do projeto no seu perfil.
+
+2. **Clone o seu fork**
+
+   ```sh
+   git clone https://github.com/seu-usuario/lazylog.git
+   cd lazylog
+   ```
+
+3. **Crie uma branch para sua feature/correção**
+
+   ```sh
+   git checkout -b minha-feature
+   ```
+
+4. **Implemente sua melhoria**
+   - Siga o padrão de código e comentários do projeto.
+   - Adicione testes automatizados para novas funcionalidades.
+   - Atualize a documentação e exemplos, se necessário.
+
+5. **Rode os testes e benchmarks**
+
+   ```sh
+   go test ./... -v
+   go test -bench=. -benchmem
+   ```
+
+6. **Faça commit e push das alterações**
+
+   ```sh
+   git add .
+   git commit -m "feat: descreva sua feature/correção"
+   git push origin minha-feature
+   ```
+
+7. **Abra um Pull Request**
+   - Acesse o repositório original e clique em "New Pull Request".
+   - Descreva claramente sua contribuição.
+
+
+### Dicas
+
+- Use mensagens de commit claras e objetivas.
+- Mantenha as dependências atualizadas e evite adicionar dependências desnecessárias.
+- Para grandes mudanças, abra uma issue antes para discutir a proposta.
+
+---

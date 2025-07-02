@@ -2,6 +2,7 @@ package lazylog
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
 )
 
@@ -11,18 +12,34 @@ type Hook func(entry *Entry)
 // TransportErrorHook é chamado quando um transporte falha ao gravar.
 type TransportErrorHook func(entry *Entry, transport Transport, err error)
 
-// Logger agora suporta hooks de erro de transporte.
+// StacktraceConfig permite ativar stacktrace automático para níveis específicos.
+type StacktraceConfig struct {
+	Enabled bool
+	Levels  map[Level]bool // Níveis que devem incluir stacktrace
+}
+
+// Logger agora pode ter configuração de stacktrace.
 type Logger struct {
 	transports  []Transport
 	BeforeHooks []Hook
 	AfterHooks  []Hook
 	ErrorHooks  []TransportErrorHook
+	Stacktrace  StacktraceConfig
 }
 
 // NewLogger cria um logger com zero ou mais transportes.
 func NewLogger(transports ...Transport) *Logger {
 	return &Logger{
 		transports: transports,
+	}
+}
+
+// EnableStacktrace ativa stacktrace automático para os níveis informados.
+func (l *Logger) EnableStacktrace(levels ...Level) {
+	l.Stacktrace.Enabled = true
+	l.Stacktrace.Levels = make(map[Level]bool)
+	for _, lvl := range levels {
+		l.Stacktrace.Levels[lvl] = true
 	}
 }
 
@@ -62,6 +79,12 @@ func (l *Logger) log(level Level, message string) {
 		Timestamp: time.Now(),
 		Message:   message,
 	}
+	if l.Stacktrace.Enabled && l.Stacktrace.Levels[level] {
+		if entry.Fields == nil {
+			entry.Fields = make(map[string]interface{})
+		}
+		entry.Fields["stacktrace"] = string(debug.Stack())
+	}
 	for _, hook := range l.BeforeHooks {
 		hook(&entry)
 	}
@@ -100,12 +123,22 @@ func (l *Logger) Error(message string) {
 	l.log(ERROR, message)
 }
 
+// logWithFields é usada internamente por EntryBuilder e pode ser exportada se desejado.
+// Para evitar o aviso de função não utilizada, pode-se adicionar um comentário '//lint:ignore U1000 used by builder' ou exportar se for útil externamente.
+//
+//lint:ignore U1000 used by EntryBuilder
 func (l *Logger) logWithFields(level Level, message string, fields map[string]interface{}) {
 	entry := Entry{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
 		Fields:    fields,
+	}
+	if l.Stacktrace.Enabled && l.Stacktrace.Levels[level] {
+		if entry.Fields == nil {
+			entry.Fields = make(map[string]interface{})
+		}
+		entry.Fields["stacktrace"] = string(debug.Stack())
 	}
 	for _, hook := range l.BeforeHooks {
 		hook(&entry)

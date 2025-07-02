@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/chmenegatti/lazylog"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
+
+	"github.com/chmenegatti/lazylog"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -21,9 +22,9 @@ func main() {
 		c.Next()
 		latency := time.Since(start)
 		logger.WithFields(map[string]any{
-			"method": c.Request.Method,
-			"path":   c.Request.URL.Path,
-			"status": c.Writer.Status(),
+			"method":  c.Request.Method,
+			"path":    c.Request.URL.Path,
+			"status":  c.Writer.Status(),
 			"latency": latency.String(),
 		}).Info("request completed")
 	})

@@ -390,3 +390,39 @@ func (l *Logger) ErrorCtx(ctx context.Context, msg string, fields map[string]int
 }
 
 type ctxKey string
+
+// ChildLogger permite criar um logger derivado com campos fixos (contexto).
+type ChildLogger struct {
+	parent *Logger
+	fields map[string]any
+}
+
+// WithFields retorna um logger derivado com contexto fixo.
+func (l *Logger) WithFields(fields map[string]any) *ChildLogger {
+	return &ChildLogger{parent: l, fields: fields}
+}
+
+func (c *ChildLogger) Debug(msg string, fields ...map[string]any) {
+	c.logWithMergedFields(DEBUG, msg, fields...)
+}
+func (c *ChildLogger) Info(msg string, fields ...map[string]any) {
+	c.logWithMergedFields(INFO, msg, fields...)
+}
+func (c *ChildLogger) Warn(msg string, fields ...map[string]any) {
+	c.logWithMergedFields(WARN, msg, fields...)
+}
+func (c *ChildLogger) Error(msg string, fields ...map[string]any) {
+	c.logWithMergedFields(ERROR, msg, fields...)
+}
+func (c *ChildLogger) logWithMergedFields(level Level, msg string, fields ...map[string]any) {
+	merged := make(map[string]any)
+	for k, v := range c.fields {
+		merged[k] = v
+	}
+	if len(fields) > 0 {
+		for k, v := range fields[0] {
+			merged[k] = v
+		}
+	}
+	c.parent.logWithFields(level, msg, merged)
+}

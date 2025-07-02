@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo/lazylog.png" alt="lazylog logo" width="240"/>
+</p>
+
 # lazylog 🚀
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/chmenegatti/lazylog.svg)](https://pkg.go.dev/github.com/chmenegatti/lazylog)

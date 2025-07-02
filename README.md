@@ -159,6 +159,24 @@ logger.Info("Log enviado para o syslog!")
 
 ---
 
+## 😃 Logs com Emojis (EmojiFormatter)
+
+O `EmojiFormatter` adiciona emojis automaticamente conforme o nível do log, tornando a leitura mais divertida e visual:
+
+```go
+logger := lazylog.NewLogger(&lazylog.ConsoleTransport{
+    Level: lazylog.DEBUG,
+    Formatter: &lazylog.EmojiFormatter{},
+})
+
+logger.Debug("Debugando...")   // 🐛 Debugando...
+logger.Info("Tudo certo!")     // ℹ️ Tudo certo!
+logger.Warn("Atenção!")        // ⚠️ Atenção!
+logger.Error("Deu ruim!")      // ❌ Deu ruim!
+```
+
+---
+
 ## 🏎️ Benchmarks
 
 Execute:

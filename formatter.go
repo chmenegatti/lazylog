@@ -94,3 +94,27 @@ func mergeFields(dst, src map[string]interface{}) {
 		}
 	}
 }
+
+// EmojiFormatter adiciona emojis de acordo com o nível do log.
+type EmojiFormatter struct {
+	Base Formatter // Formatter base (TextFormatter, JSONFormatter, etc)
+}
+
+var levelEmojis = map[Level]string{
+	DEBUG: "🐛",
+	INFO:  "ℹ️",
+	WARN:  "⚠️",
+	ERROR: "❌",
+}
+
+func (f *EmojiFormatter) Format(entry *Entry) ([]byte, error) {
+	emoji := levelEmojis[entry.Level]
+	if emoji == "" {
+		emoji = "" // Sem emoji para níveis customizados
+	}
+	if entry.Fields == nil {
+		entry.Fields = make(map[string]any)
+	}
+	entry.Fields["emoji"] = emoji
+	return f.Base.Format(entry)
+}

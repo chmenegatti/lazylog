@@ -1,13 +1,12 @@
+# lazylog 🚀
+
 <p align="center">
   <img src="logo/lazylog.png" alt="lazylog logo" width="240"/>
 </p>
 
-# lazylog 🚀
-
 [![Go Reference](https://pkg.go.dev/badge/github.com/chmenegatti/lazylog.svg)](https://pkg.go.dev/github.com/chmenegatti/lazylog)
 [![Go Report Card](https://goreportcard.com/badge/github.com/chmenegatti/lazylog)](https://goreportcard.com/report/github.com/chmenegatti/lazylog)
 [![License: Apache 2.0](https://img.shields.io/badge/apache-2.0-yellow)](LICENSE.md)
-
 
 Uma biblioteca de logging para Go inspirada na Winston do NodeJS, com foco em flexibilidade, extensibilidade e facilidade de uso.
 
@@ -471,7 +470,6 @@ Contribuições são muito bem-vindas! Siga as etapas abaixo para colaborar com 
 7. **Abra um Pull Request**
    - Acesse o repositório original e clique em "New Pull Request".
    - Descreva claramente sua contribuição.
-
 
 ### Dicas
 

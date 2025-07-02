@@ -2,6 +2,7 @@ package lazylog
 
 import (
 	"context"
+	"os"
 	"runtime/debug"
 	"time"
 )
@@ -121,6 +122,34 @@ func (l *Logger) Warn(message string) {
 // Error registra uma mensagem no nível ERROR.
 func (l *Logger) Error(message string) {
 	l.log(ERROR, message)
+}
+
+// Fatal registra uma mensagem no nível ERROR, inclui stacktrace (se ativado) e encerra a aplicação.
+func (l *Logger) Fatal(message string, fields ...map[string]any) {
+	var flds map[string]any
+	if len(fields) > 0 {
+		flds = fields[0]
+	}
+	l.logWithFields(ERROR, message, flds)
+	if flds == nil {
+		flds = make(map[string]any)
+	}
+	flds["stacktrace"] = string(debug.Stack())
+	os.Exit(1)
+}
+
+// Panic registra uma mensagem no nível ERROR, inclui stacktrace (se ativado) e faz panic.
+func (l *Logger) Panic(message string, fields ...map[string]any) {
+	var flds map[string]any
+	if len(fields) > 0 {
+		flds = fields[0]
+	}
+	l.logWithFields(ERROR, message, flds)
+	if flds == nil {
+		flds = make(map[string]any)
+	}
+	flds["stacktrace"] = string(debug.Stack())
+	panic(message)
 }
 
 // logWithFields é usada internamente por EntryBuilder e pode ser exportada se desejado.

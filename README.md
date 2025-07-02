@@ -10,17 +10,23 @@ go get github.com/chmenegatti/lazylog
 
 ## Principais Features
 
-- **Múltiplos transportes**: console, arquivo, rotação de arquivo (lumberjack), customizáveis
+- **Múltiplos transportes**: console, arquivo, rotação de arquivo (lumberjack), syslog, customizáveis
 - **Níveis de log customizáveis**: registre seus próprios níveis além de DEBUG, INFO, WARN, ERROR
 - **Formatadores customizáveis**: texto, JSON, ou implemente o seu
 - **Metadata/contexto extra**: adicione campos extras (ex: user, request_id, etc)
 - **Hooks**: execute funções antes/depois de cada log, ou em caso de erro de transporte
 - **Filtros por transporte**: lógica customizada para decidir se um log será aceito
-- **Configuração dinâmica via struct/map**: inicialize o logger a partir de configuração
+- **Configuração dinâmica via struct/map/arquivo (JSON/YAML)**: inicialize o logger a partir de configuração
 - **Suporte a context.Context**: integração fácil com tracing/distribuição
 - **Formatação customizada por mensagem**: sobrescreva o formatter só para um log
 - **Campos aninhados/estruturados**: suporte a mapas dentro de mapas no JSON
 - **Remoção/adicionamento dinâmico de transportes**
+- **Stacktrace automático**: inclui stacktrace em logs de erro/fatal
+- **API de child loggers**: loggers derivados com contexto fixo
+- **Métodos Fatal/Panic**: loga e encerra a aplicação ou faz panic
+- **Benchmarks e testes automatizados**
+- **Exemplos de integração com frameworks web (Gin, Echo, Fiber)**
+- **Transporte para syslog**
 
 ---
 
@@ -179,30 +185,140 @@ logger, _ := lazylog.NewLoggerFromConfig(cfg)
 
 ---
 
-## Formatação customizada por mensagem
+## Configuração via Arquivo (JSON/YAML)
+
+### logger_config.json
+
+```json
+{
+  "Transports": [
+    {
+      "Type": "console",
+      "Level": "DEBUG",
+      "Formatter": "text"
+    },
+    {
+      "Type": "file",
+      "Level": "INFO",
+      "Formatter": "json",
+      "Options": {"path": "app.log"}
+    }
+  ]
+}
+```
+
+### logger_config.yaml
+
+```yaml
+Transports:
+  - Type: console
+    Level: DEBUG
+    Formatter: text
+  - Type: file
+    Level: INFO
+    Formatter: json
+    Options:
+      path: app.log
+```
+
+### Uso
 
 ```go
-logger.WithFormatter(&lazylog.TextFormatter{TimestampFormat: time.RFC822}).Info("Log com timestamp customizado!")
+cfg, _ := lazylog.LoadLoggerConfigJSON("logger_config.json")
+logger, _ := lazylog.NewLoggerFromConfig(cfg)
+logger.Info("Logger configurado via JSON!")
 ```
 
 ---
 
-## Campos aninhados/estruturados
+## Uso de Child Logger
 
 ```go
-logger.ComFields(map[string]any{
- "user": "cesar",
- "request": map[string]any{
-  "id": 123,
-  "ip": "1.2.3.4",
- },
-}).Info("Log estruturado")
+child := logger.WithFields(map[string]any{"service": "auth", "env": os.Getenv("ENV")})
+child.Info("Log do serviço de autenticação")
+child.Error("Erro no serviço de autenticação", map[string]any{"code": 401})
 ```
 
-**Saída JSON:**
+---
 
-```json
-{"level":"INFO","message":"Log estruturado","timestamp":"2025-07-01T21:00:00-03:00","user":"cesar","request":{"id":123,"ip":"1.2.3.4"}}
+## Envio para Syslog
+
+```go
+syslogTransport, _ := lazylog.NewSyslogTransport(syslog.LOG_INFO|syslog.LOG_LOCAL0, "myapp", lazylog.INFO, &lazylog.TextFormatter{})
+logger := lazylog.NewLogger(syslogTransport)
+logger.Info("Log enviado para o syslog!")
+```
+
+---
+
+## Benchmarks
+
+Execute:
+
+```sh
+go test -bench=. -benchmem
+```
+
+---
+
+## Exemplos de Integração com Frameworks Web
+
+### Gin
+
+```go
+r := gin.New()
+logger := lazylog.NewLogger(&lazylog.ConsoleTransport{Level: lazylog.DEBUG, Formatter: &lazylog.TextFormatter{}})
+r.Use(func(c *gin.Context) {
+    start := time.Now()
+    c.Next()
+    latency := time.Since(start)
+    logger.WithFields(map[string]any{
+        "method": c.Request.Method,
+        "path":   c.Request.URL.Path,
+        "status": c.Writer.Status(),
+        "latency": latency.String(),
+    }).Info("request completed")
+})
+```
+
+### Echo
+
+```go
+e := echo.New()
+logger := lazylog.NewLogger(&lazylog.ConsoleTransport{Level: lazylog.INFO, Formatter: &lazylog.TextFormatter{}})
+e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        start := time.Now()
+        err := next(c)
+        latency := time.Since(start)
+        logger.WithFields(map[string]any{
+            "method": c.Request().Method,
+            "path":   c.Request().URL.Path,
+            "status": c.Response().Status,
+            "latency": latency.String(),
+        }).Info("request completed")
+        return err
+    }
+})
+```
+
+### Fiber
+
+```go
+app := fiber.New()
+logger := lazylog.NewLogger(&lazylog.ConsoleTransport{Level: lazylog.INFO, Formatter: &lazylog.TextFormatter{}})
+app.Use(func(c *fiber.Ctx) error {
+    start := time.Now()
+    err := c.Next()
+    latency := time.Since(start)
+    logger.WithFields(map[string]any{
+        "method": c.Method(),
+        "path":   c.Path(),
+        "status": c.Response().StatusCode(),
+        "latency": latency.String(),
+    }).Info("request completed")
+    return err
+})
 ```
 
 ---
@@ -217,15 +333,7 @@ go test ./...
 
 ---
 
-## Integração com frameworks web
-
-Basta usar hooks para capturar request_id, user, etc, e passar context.Context nos logs.
-
----
-
-## Contribuindo
-
-Pull requests são bem-vindos! Abra uma issue para bugs ou sugestões.
+## Para mais exemplos, veja a pasta `examples`
 
 ---
 

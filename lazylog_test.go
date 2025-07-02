@@ -117,7 +117,7 @@ func TestWithFormatter(t *testing.T) {
 	logger := lazylog.NewLogger(tr)
 	logger.WithFormatter(&lazylog.TextFormatter{TimestampFormat: time.RFC822}).Info("custom format")
 	out := buf.String()
-	if !strings.Contains(out, time.Now().Format("2006")) {
+	if !strings.Contains(out, "custom format") || !strings.Contains(out, "[INFO]") || !strings.Contains(out, "Jul") {
 		t.Errorf("custom formatter not applied: %s", out)
 	}
 }

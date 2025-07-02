@@ -259,13 +259,14 @@ func (l *Logger) logWithContext(ctx context.Context, level Level, message string
 		Message:   message,
 		Fields:    fields,
 	}
-	// Exemplo: extrair trace_id do contexto, se existir
-	if ctx != nil {
-		if v := ctx.Value("trace_id"); v != nil {
+	// Suporte a context key customizada e string
+	for _, key := range []any{ctxKey("trace_id"), "trace_id"} {
+		if v := ctx.Value(key); v != nil {
 			if entry.Fields == nil {
 				entry.Fields = make(map[string]interface{})
 			}
 			entry.Fields["trace_id"] = v
+			break
 		}
 	}
 	for _, hook := range l.BeforeHooks {
@@ -273,7 +274,12 @@ func (l *Logger) logWithContext(ctx context.Context, level Level, message string
 	}
 	for _, t := range l.transports {
 		if level >= t.MinLevel() {
-			t.WriteLog(&entry)
+			err := t.WriteLog(&entry)
+			if err != nil {
+				for _, eh := range l.ErrorHooks {
+					eh(&entry, t, err)
+				}
+			}
 		}
 	}
 	for _, hook := range l.AfterHooks {
@@ -294,3 +300,5 @@ func (l *Logger) WarnCtx(ctx context.Context, msg string, fields map[string]inte
 func (l *Logger) ErrorCtx(ctx context.Context, msg string, fields map[string]interface{}) {
 	l.logWithContext(ctx, ERROR, msg, fields)
 }
+
+type ctxKey string

@@ -91,9 +91,6 @@ func TestTransportFilter(t *testing.T) {
 }
 
 func TestContextSupport(t *testing.T) {
-	type ctxKey string
-	const traceIDKey ctxKey = "trace_id"
-
 	buf := &bytes.Buffer{}
 	tr := &lazylog.WriterTransport{
 		Writer:    buf,
@@ -101,7 +98,7 @@ func TestContextSupport(t *testing.T) {
 		Formatter: &lazylog.JSONFormatter{},
 	}
 	logger := lazylog.NewLogger(tr)
-	ctx := context.WithValue(context.Background(), traceIDKey, "abc-123")
+	ctx := context.WithValue(context.Background(), "trace_id", "abc-123")
 	logger.InfoCtx(ctx, "ctx test", nil)
 	var m map[string]any
 	_ = json.Unmarshal(buf.Bytes(), &m)

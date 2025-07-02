@@ -6,7 +6,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/chmenegatti/lazylog.svg)](https://pkg.go.dev/github.com/chmenegatti/lazylog)
 [![Go Report Card](https://goreportcard.com/badge/github.com/chmenegatti/lazylog)](https://goreportcard.com/report/github.com/chmenegatti/lazylog)
-[![License: Apache 2.0](https://img.shields.io/badge/apache-2.0-yellow)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/apache-2.0-yellow)](LICENSE.md)
 
 
 Uma biblioteca de logging para Go inspirada na Winston do NodeJS, com foco em flexibilidade, extensibilidade e facilidade de uso.

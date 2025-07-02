@@ -2,9 +2,13 @@ package lazylog
 
 import (
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"os"
 	"runtime/debug"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Hook func(entry *Entry)
@@ -311,6 +315,28 @@ func NewLoggerFromConfig(cfg LoggerConfig) (*Logger, error) {
 		}
 	}
 	return logger, nil
+}
+
+// LoadLoggerConfigJSON carrega configuração do logger de um arquivo JSON.
+func LoadLoggerConfigJSON(path string) (LoggerConfig, error) {
+	var cfg LoggerConfig
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return cfg, err
+	}
+	err = json.Unmarshal(data, &cfg)
+	return cfg, err
+}
+
+// LoadLoggerConfigYAML carrega configuração do logger de um arquivo YAML.
+func LoadLoggerConfigYAML(path string) (LoggerConfig, error) {
+	var cfg LoggerConfig
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return cfg, err
+	}
+	err = yaml.Unmarshal(data, &cfg)
+	return cfg, err
 }
 
 // logWithContext permite logar com context.Context, extraindo informações relevantes.

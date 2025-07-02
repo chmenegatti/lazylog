@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/chmenegatti/lazylog"
 	"log/syslog"
+
+	"github.com/chmenegatti/lazylog"
 )
 
 func main() {

@@ -1,9 +1,10 @@
 package main
 
 import (
+	"time"
+
 	"github.com/chmenegatti/lazylog"
 	"github.com/gofiber/fiber/v2"
-	"time"
 )
 
 func main() {
@@ -18,9 +19,9 @@ func main() {
 		err := c.Next()
 		latency := time.Since(start)
 		logger.WithFields(map[string]any{
-			"method": c.Method(),
-			"path":   c.Path(),
-			"status": c.Response().StatusCode(),
+			"method":  c.Method(),
+			"path":    c.Path(),
+			"status":  c.Response().StatusCode(),
 			"latency": latency.String(),
 		}).Info("request completed")
 		return err

@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/chmenegatti/lazylog"
-	"github.com/labstack/echo/v4"
 	"net/http"
 	"time"
+
+	"github.com/chmenegatti/lazylog"
+	"github.com/labstack/echo/v4"
 )
 
 func main() {
@@ -20,9 +21,9 @@ func main() {
 			err := next(c)
 			latency := time.Since(start)
 			logger.WithFields(map[string]any{
-				"method": c.Request().Method,
-				"path":   c.Request().URL.Path,
-				"status": c.Response().Status,
+				"method":  c.Request().Method,
+				"path":    c.Request().URL.Path,
+				"status":  c.Response().Status,
 				"latency": latency.String(),
 			}).Info("request completed")
 			return err

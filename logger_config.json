@@ -1,0 +1,15 @@
+{
+  "Transports": [
+    {
+      "Type": "console",
+      "Level": "DEBUG",
+      "Formatter": "text"
+    },
+    {
+      "Type": "file",
+      "Level": "INFO",
+      "Formatter": "json",
+      "Options": {"path": "app.log"}
+    }
+  ]
+}

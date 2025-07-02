@@ -193,4 +193,6 @@ go test -bench=. -benchmem
 
 ## 📝 Licença
 
-MIT
+MIT License. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+

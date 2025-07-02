@@ -1,26 +1,24 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
-	"github.com/chmenegatti/lazylog" // Importa a biblioteca
+	"github.com/chmenegatti/lazylog"
 )
 
 func main() {
-	file, err := os.OpenFile("app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	fileTransport, err := lazylog.NewFileTransport("app.log", lazylog.INFO, &lazylog.TextFormatter{})
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Erro ao abrir arquivo de log:", err)
+		os.Exit(1)
 	}
-	defer file.Close()
+	defer fileTransport.Close()
 
-	fileLogger := lazylog.New()
-	fileLogger.Out = file
+	logger := lazylog.NewLogger(fileTransport)
 
-	fileLogger.Info("Servidor iniciado.")
-	fileLogger.Warn("A conexão com o banco de dados está lenta.")
-	fileLogger.Error("Falha ao processar a requisição #123.")
-	fileLogger.Info("Servidor finalizado.")
-
-	log.Println("Logs foram escritos em app.log")
+	logger.Info("Servidor iniciado.")
+	logger.Warn("A conexão com o banco de dados está lenta.")
+	logger.Error("Falha ao processar a requisição #123.")
+	logger.Info("Servidor finalizado.")
 }

@@ -422,7 +422,7 @@ go test -bench=. -benchmem
 
 ## 📝 Licença
 
-MIT License. Veja o arquivo [LICENSE](LICENSE-MIT) para mais detalhes.
+Apache 2.0 License. Veja o arquivo [LICENSE](LICENSE.md) para mais detalhes.
 
 ## 🤝 Como Contribuir
 

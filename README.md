@@ -422,7 +422,7 @@ go test -bench=. -benchmem
 
 ## 📝 Licença
 
-MIT License. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+MIT License. Veja o arquivo [LICENSE](LICENSE-MIT) para mais detalhes.
 
 ## 🤝 Como Contribuir
 

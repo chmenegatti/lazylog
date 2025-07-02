@@ -31,9 +31,9 @@ func BenchmarkLogger_JSONFields(b *testing.B) {
 		Formatter: &lazylog.JSONFormatter{},
 	}
 	logger := lazylog.NewLogger(tr)
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"user":    "cesar",
-		"request": map[string]interface{}{"id": 123, "ip": "1.2.3.4"},
+		"request": map[string]any{"id": 123, "ip": "1.2.3.4"},
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

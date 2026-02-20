@@ -1,6 +1,9 @@
 package lazylog
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 type Level int
 
@@ -12,6 +15,7 @@ const (
 )
 
 var (
+	levelMu    sync.RWMutex
 	levelNames = map[Level]string{
 		DEBUG: "DEBUG",
 		INFO:  "INFO",
@@ -28,11 +32,15 @@ var (
 
 // RegisterLevel permite registrar um novo nível de log customizado.
 func RegisterLevel(name string, value Level) {
+	levelMu.Lock()
+	defer levelMu.Unlock()
 	levelNames[value] = name
 	levelValues[name] = value
 }
 
 func (l Level) String() string {
+	levelMu.RLock()
+	defer levelMu.RUnlock()
 	if name, ok := levelNames[l]; ok {
 		return name
 	}
@@ -40,6 +48,8 @@ func (l Level) String() string {
 }
 
 func ParseLevel(lvl string) Level {
+	levelMu.RLock()
+	defer levelMu.RUnlock()
 	if v, ok := levelValues[strings.ToUpper(lvl)]; ok {
 		return v
 	}

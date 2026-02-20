@@ -117,8 +117,13 @@ func TestWithFormatter(t *testing.T) {
 	logger := lazylog.NewLogger(tr)
 	logger.WithFormatter(&lazylog.TextFormatter{TimestampFormat: time.RFC822}).Info("custom format")
 	out := buf.String()
-	if !strings.Contains(out, "custom format") || !strings.Contains(out, "[INFO]") || !strings.Contains(out, "Jul") {
+	// RFC822 format: "02 Jan 06 15:04 MST" — verifica se contém o padrão correto
+	if !strings.Contains(out, "custom format") || !strings.Contains(out, "[INFO]") {
 		t.Errorf("custom formatter not applied: %s", out)
+	}
+	// Verifica que o timestamp NÃO está no formato RFC3339 (padrão), indicando que o custom formatter foi usado
+	if strings.Contains(out, "T") && strings.Contains(out, "-") && strings.Count(out, ":") > 2 {
+		t.Errorf("expected RFC822 timestamp format, but got RFC3339-like: %s", out)
 	}
 }
 

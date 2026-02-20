@@ -108,13 +108,23 @@ var levelEmojis = map[Level]string{
 }
 
 func (f *EmojiFormatter) Format(entry *Entry) ([]byte, error) {
+	if f.Base == nil {
+		f.Base = &TextFormatter{}
+	}
 	emoji := levelEmojis[entry.Level]
-	if emoji == "" {
-		emoji = "" // Sem emoji para níveis customizados
+
+	// Cria cópia da entry para não mutar a original
+	copiedFields := make(map[string]interface{})
+	for k, v := range entry.Fields {
+		copiedFields[k] = v
 	}
-	if entry.Fields == nil {
-		entry.Fields = make(map[string]any)
+	copiedFields["emoji"] = emoji
+
+	copiedEntry := &Entry{
+		Level:     entry.Level,
+		Timestamp: entry.Timestamp,
+		Message:   entry.Message,
+		Fields:    copiedFields,
 	}
-	entry.Fields["emoji"] = emoji
-	return f.Base.Format(entry)
+	return f.Base.Format(copiedEntry)
 }

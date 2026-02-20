@@ -25,7 +25,11 @@ func NewFileTransport(path string, level Level, formatter Formatter) (*FileTrans
 }
 
 func (f *FileTransport) WriteLog(entry *Entry) error {
-	bytes, err := f.Formatter.Format(entry)
+	formatter := f.Formatter
+	if formatter == nil {
+		formatter = &TextFormatter{}
+	}
+	bytes, err := formatter.Format(entry)
 	if err != nil {
 		_, err2 := io.WriteString(f.File, entry.Timestamp.Format("2006-01-02T15:04:05Z07:00")+" ["+entry.Level.String()+"] "+entry.Message+"\n")
 		return err2

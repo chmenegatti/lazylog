@@ -16,7 +16,11 @@ func (c *ConsoleTransport) WriteLog(entry *Entry) error {
 	if c.ToStdErr {
 		out = os.Stderr
 	}
-	bytes, err := c.Formatter.Format(entry)
+	formatter := c.Formatter
+	if formatter == nil {
+		formatter = &TextFormatter{}
+	}
+	bytes, err := formatter.Format(entry)
 	if err != nil {
 		_, err2 := out.Write([]byte(entry.Timestamp.Format("2006-01-02T15:04:05Z07:00") + " [" + entry.Level.String() + "] " + entry.Message + "\n"))
 		return err2

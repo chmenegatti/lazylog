@@ -11,7 +11,11 @@ type WriterTransport struct {
 }
 
 func (w *WriterTransport) WriteLog(entry *Entry) error {
-	bytes, err := w.Formatter.Format(entry)
+	formatter := w.Formatter
+	if formatter == nil {
+		formatter = &TextFormatter{}
+	}
+	bytes, err := formatter.Format(entry)
 	if err != nil {
 		// fallback simples
 		_, err2 := w.Writer.Write([]byte(entry.Timestamp.Format("2006-01-02T15:04:05Z07:00") + " [" + entry.Level.String() + "] " + entry.Message + "\n"))

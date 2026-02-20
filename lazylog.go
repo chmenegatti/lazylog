@@ -3,9 +3,11 @@ package lazylog
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -13,7 +15,6 @@ import (
 
 type Hook func(entry *Entry)
 
-// Hook de erro de transporte
 // TransportErrorHook é chamado quando um transporte falha ao gravar.
 type TransportErrorHook func(entry *Entry, transport Transport, err error)
 
@@ -23,13 +24,14 @@ type StacktraceConfig struct {
 	Levels  map[Level]bool // Níveis que devem incluir stacktrace
 }
 
-// Logger agora pode ter configuração de stacktrace.
+// Logger é o logger principal, thread-safe para uso concorrente.
 type Logger struct {
+	mu          sync.RWMutex
 	transports  []Transport
-	BeforeHooks []Hook
-	AfterHooks  []Hook
-	ErrorHooks  []TransportErrorHook
-	Stacktrace  StacktraceConfig
+	beforeHooks []Hook
+	afterHooks  []Hook
+	errorHooks  []TransportErrorHook
+	stacktrace  StacktraceConfig
 }
 
 // NewLogger cria um logger com zero ou mais transportes.
@@ -41,20 +43,26 @@ func NewLogger(transports ...Transport) *Logger {
 
 // EnableStacktrace ativa stacktrace automático para os níveis informados.
 func (l *Logger) EnableStacktrace(levels ...Level) {
-	l.Stacktrace.Enabled = true
-	l.Stacktrace.Levels = make(map[Level]bool)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.stacktrace.Enabled = true
+	l.stacktrace.Levels = make(map[Level]bool)
 	for _, lvl := range levels {
-		l.Stacktrace.Levels[lvl] = true
+		l.stacktrace.Levels[lvl] = true
 	}
 }
 
 // AddTransport adiciona um novo transporte ao logger.
 func (l *Logger) AddTransport(t Transport) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.transports = append(l.transports, t)
 }
 
 // RemoveTransport remove um transporte do logger (por comparação de ponteiro).
 func (l *Logger) RemoveTransport(t Transport) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	for i, tr := range l.transports {
 		if tr == t {
 			l.transports = append(l.transports[:i], l.transports[i+1:]...)
@@ -65,47 +73,133 @@ func (l *Logger) RemoveTransport(t Transport) {
 
 // AddHook adiciona um hook para ser executado antes ou depois do log.
 func (l *Logger) AddHook(hook Hook, before bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	if before {
-		l.BeforeHooks = append(l.BeforeHooks, hook)
+		l.beforeHooks = append(l.beforeHooks, hook)
 	} else {
-		l.AfterHooks = append(l.AfterHooks, hook)
+		l.afterHooks = append(l.afterHooks, hook)
 	}
 }
 
 // AddErrorHook adiciona um hook para erros de transporte.
 func (l *Logger) AddErrorHook(hook TransportErrorHook) {
-	l.ErrorHooks = append(l.ErrorHooks, hook)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.errorHooks = append(l.errorHooks, hook)
+}
+
+// Close fecha todos os transportes que implementam io.Closer.
+func (l *Logger) Close() error {
+	l.mu.RLock()
+	transports := make([]Transport, len(l.transports))
+	copy(transports, l.transports)
+	l.mu.RUnlock()
+
+	var firstErr error
+	for _, t := range transports {
+		if closer, ok := t.(io.Closer); ok {
+			if err := closer.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
+// snapshot retorna cópias locais dos campos protegidos para uso seguro fora do lock.
+type logSnapshot struct {
+	transports  []Transport
+	beforeHooks []Hook
+	afterHooks  []Hook
+	errorHooks  []TransportErrorHook
+	stacktrace  StacktraceConfig
+}
+
+func (l *Logger) snapshot() logSnapshot {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return logSnapshot{
+		transports:  l.transports,
+		beforeHooks: l.beforeHooks,
+		afterHooks:  l.afterHooks,
+		errorHooks:  l.errorHooks,
+		stacktrace:  l.stacktrace,
+	}
+}
+
+// dispatchEntry é a lógica centralizada de despacho de entry para transportes e hooks.
+func dispatchEntry(snap logSnapshot, entry *Entry, formatter Formatter) {
+	for _, hook := range snap.beforeHooks {
+		hook(entry)
+	}
+	for _, t := range snap.transports {
+		if entry.Level >= t.MinLevel() {
+			var err error
+			if formatter != nil {
+				// Formata com o formatter customizado e escreve diretamente,
+				// sem alterar o formatter do transporte (thread-safe).
+				formatted, fmtErr := formatter.Format(entry)
+				if fmtErr != nil {
+					err = fmtErr
+				} else {
+					err = writeFormatted(t, formatted)
+				}
+			} else {
+				err = t.WriteLog(entry)
+			}
+			if err != nil {
+				for _, eh := range snap.errorHooks {
+					eh(entry, t, err)
+				}
+			}
+		}
+	}
+	for _, hook := range snap.afterHooks {
+		hook(entry)
+	}
+}
+
+// writeFormatted escreve bytes já formatados diretamente no writer do transporte.
+func writeFormatted(t Transport, data []byte) error {
+	switch tr := t.(type) {
+	case *WriterTransport:
+		_, err := tr.Writer.Write(data)
+		return err
+	case *ConsoleTransport:
+		out := os.Stdout
+		if tr.ToStdErr {
+			out = os.Stderr
+		}
+		_, err := out.Write(data)
+		return err
+	case *FileTransport:
+		_, err := tr.File.Write(data)
+		return err
+	case *LumberjackTransport:
+		_, err := tr.Logger.Write(data)
+		return err
+	default:
+		// Fallback: usa WriteLog normal (ignora formatter customizado)
+		return t.WriteLog(&Entry{Message: string(data)})
+	}
 }
 
 // log envia a entry para todos os transportes cujo nível mínimo seja compatível.
 func (l *Logger) log(level Level, message string) {
+	snap := l.snapshot()
 	entry := Entry{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
 	}
-	if l.Stacktrace.Enabled && l.Stacktrace.Levels[level] {
+	if snap.stacktrace.Enabled && snap.stacktrace.Levels[level] {
 		if entry.Fields == nil {
 			entry.Fields = make(map[string]interface{})
 		}
 		entry.Fields["stacktrace"] = string(debug.Stack())
 	}
-	for _, hook := range l.BeforeHooks {
-		hook(&entry)
-	}
-	for _, t := range l.transports {
-		if level >= t.MinLevel() {
-			err := t.WriteLog(&entry)
-			if err != nil {
-				for _, eh := range l.ErrorHooks {
-					eh(&entry, t, err)
-				}
-			}
-		}
-	}
-	for _, hook := range l.AfterHooks {
-		hook(&entry)
-	}
+	dispatchEntry(snap, &entry, nil)
 }
 
 // Debug registra uma mensagem no nível DEBUG.
@@ -128,67 +222,50 @@ func (l *Logger) Error(message string) {
 	l.log(ERROR, message)
 }
 
-// Fatal registra uma mensagem no nível ERROR, inclui stacktrace (se ativado) e encerra a aplicação.
+// Fatal registra uma mensagem no nível ERROR, inclui stacktrace e encerra a aplicação.
 func (l *Logger) Fatal(message string, fields ...map[string]any) {
 	var flds map[string]any
 	if len(fields) > 0 {
 		flds = fields[0]
 	}
-	l.logWithFields(ERROR, message, flds)
 	if flds == nil {
 		flds = make(map[string]any)
 	}
 	flds["stacktrace"] = string(debug.Stack())
+	l.logWithFields(ERROR, message, flds)
 	os.Exit(1)
 }
 
-// Panic registra uma mensagem no nível ERROR, inclui stacktrace (se ativado) e faz panic.
+// Panic registra uma mensagem no nível ERROR, inclui stacktrace e faz panic.
 func (l *Logger) Panic(message string, fields ...map[string]any) {
 	var flds map[string]any
 	if len(fields) > 0 {
 		flds = fields[0]
 	}
-	l.logWithFields(ERROR, message, flds)
 	if flds == nil {
 		flds = make(map[string]any)
 	}
 	flds["stacktrace"] = string(debug.Stack())
+	l.logWithFields(ERROR, message, flds)
 	panic(message)
 }
 
-// logWithFields é usada internamente por EntryBuilder e pode ser exportada se desejado.
-// Para evitar o aviso de função não utilizada, pode-se adicionar um comentário '//lint:ignore U1000 used by builder' ou exportar se for útil externamente.
-//
-//lint:ignore U1000 used by EntryBuilder
+// logWithFields é usada internamente por EntryBuilder.
 func (l *Logger) logWithFields(level Level, message string, fields map[string]interface{}) {
+	snap := l.snapshot()
 	entry := Entry{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
 		Fields:    fields,
 	}
-	if l.Stacktrace.Enabled && l.Stacktrace.Levels[level] {
+	if snap.stacktrace.Enabled && snap.stacktrace.Levels[level] {
 		if entry.Fields == nil {
 			entry.Fields = make(map[string]interface{})
 		}
 		entry.Fields["stacktrace"] = string(debug.Stack())
 	}
-	for _, hook := range l.BeforeHooks {
-		hook(&entry)
-	}
-	for _, t := range l.transports {
-		if level >= t.MinLevel() {
-			err := t.WriteLog(&entry)
-			if err != nil {
-				for _, eh := range l.ErrorHooks {
-					eh(&entry, t, err)
-				}
-			}
-		}
-	}
-	for _, hook := range l.AfterHooks {
-		hook(&entry)
-	}
+	dispatchEntry(snap, &entry, nil)
 }
 
 // ComFields permite adicionar metadata/contexto extra ao log.
@@ -221,53 +298,16 @@ func (b *EntryBuilder) Error(msg string) {
 	b.logger.logWithFieldsCustomFormatter(ERROR, msg, b.fields, b.formatter)
 }
 
-// logWithFieldsCustomFormatter permite sobrescrever o formatter por mensagem.
+// logWithFieldsCustomFormatter permite sobrescrever o formatter por mensagem (thread-safe).
 func (l *Logger) logWithFieldsCustomFormatter(level Level, message string, fields map[string]interface{}, formatter Formatter) {
+	snap := l.snapshot()
 	entry := Entry{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
 		Fields:    fields,
 	}
-	for _, hook := range l.BeforeHooks {
-		hook(&entry)
-	}
-	for _, t := range l.transports {
-		if level >= t.MinLevel() {
-			if formatter != nil {
-				// Se o transporte for WriterTransport, ConsoleTransport, FileTransport ou LumberjackTransport, sobrescreve o formatter temporariamente
-				switch tr := t.(type) {
-				case *WriterTransport:
-					orig := tr.Formatter
-					tr.Formatter = formatter
-					_ = tr.WriteLog(&entry)
-					tr.Formatter = orig
-				case *ConsoleTransport:
-					orig := tr.Formatter
-					tr.Formatter = formatter
-					_ = tr.WriteLog(&entry)
-					tr.Formatter = orig
-				case *FileTransport:
-					orig := tr.Formatter
-					tr.Formatter = formatter
-					_ = tr.WriteLog(&entry)
-					tr.Formatter = orig
-				case *LumberjackTransport:
-					orig := tr.Formatter
-					tr.Formatter = formatter
-					_ = tr.WriteLog(&entry)
-					tr.Formatter = orig
-				default:
-					_ = t.WriteLog(&entry)
-				}
-			} else {
-				_ = t.WriteLog(&entry)
-			}
-		}
-	}
-	for _, hook := range l.AfterHooks {
-		hook(&entry)
-	}
+	dispatchEntry(snap, &entry, formatter)
 }
 
 // LoggerConfig permite inicializar o logger de forma dinâmica.
@@ -312,6 +352,8 @@ func NewLoggerFromConfig(cfg LoggerConfig) (*Logger, error) {
 				return nil, err
 			}
 			logger.AddTransport(ft)
+		default:
+			return nil, fmt.Errorf("lazylog: unknown transport type %q", tcfg.Type)
 		}
 	}
 	return logger, nil
@@ -320,7 +362,7 @@ func NewLoggerFromConfig(cfg LoggerConfig) (*Logger, error) {
 // LoadLoggerConfigJSON carrega configuração do logger de um arquivo JSON.
 func LoadLoggerConfigJSON(path string) (LoggerConfig, error) {
 	var cfg LoggerConfig
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return cfg, err
 	}
@@ -331,7 +373,7 @@ func LoadLoggerConfigJSON(path string) (LoggerConfig, error) {
 // LoadLoggerConfigYAML carrega configuração do logger de um arquivo YAML.
 func LoadLoggerConfigYAML(path string) (LoggerConfig, error) {
 	var cfg LoggerConfig
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return cfg, err
 	}
@@ -341,6 +383,7 @@ func LoadLoggerConfigYAML(path string) (LoggerConfig, error) {
 
 // logWithContext permite logar com context.Context, extraindo informações relevantes.
 func (l *Logger) logWithContext(ctx context.Context, level Level, message string, fields map[string]interface{}) {
+	snap := l.snapshot()
 	entry := Entry{
 		Level:     level,
 		Timestamp: time.Now(),
@@ -348,7 +391,7 @@ func (l *Logger) logWithContext(ctx context.Context, level Level, message string
 		Fields:    fields,
 	}
 	// Suporte a context key customizada e string
-	for _, key := range []any{ctxKey("trace_id"), "trace_id"} {
+	for _, key := range []any{CtxKey("trace_id"), "trace_id"} {
 		if v := ctx.Value(key); v != nil {
 			if entry.Fields == nil {
 				entry.Fields = make(map[string]interface{})
@@ -357,22 +400,7 @@ func (l *Logger) logWithContext(ctx context.Context, level Level, message string
 			break
 		}
 	}
-	for _, hook := range l.BeforeHooks {
-		hook(&entry)
-	}
-	for _, t := range l.transports {
-		if level >= t.MinLevel() {
-			err := t.WriteLog(&entry)
-			if err != nil {
-				for _, eh := range l.ErrorHooks {
-					eh(&entry, t, err)
-				}
-			}
-		}
-	}
-	for _, hook := range l.AfterHooks {
-		hook(&entry)
-	}
+	dispatchEntry(snap, &entry, nil)
 }
 
 // API pública para logar com contexto
@@ -389,7 +417,8 @@ func (l *Logger) ErrorCtx(ctx context.Context, msg string, fields map[string]int
 	l.logWithContext(ctx, ERROR, msg, fields)
 }
 
-type ctxKey string
+// CtxKey é o tipo exportado para chaves de contexto do lazylog.
+type CtxKey string
 
 // ChildLogger permite criar um logger derivado com campos fixos (contexto).
 type ChildLogger struct {
